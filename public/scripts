@@ -1,0 +1,32 @@
+async function generateCode() {
+  const number = document.getElementById("number").value;
+  const output = document.getElementById("output");
+
+  if (!number) {
+    output.innerText = "⚠️ Entrez un numéro WhatsApp au format international.";
+    return;
+  }
+
+  output.innerText = "⏳ Génération du pairing code...";
+
+  try {
+    const res = await fetch("/session/generate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ number })
+    });
+
+    const data = await res.json();
+
+    if (res.ok) {
+      output.innerText = `✅ Pairing Code généré :\n\n${data.code}`;
+    } else {
+      output.innerText = `❌ Erreur : ${data.error || "Échec de la génération du code."}`;
+    }
+  } catch (err) {
+    output.innerText = "❌ Erreur de connexion au serveur.";
+    console.error(err);
+  }
+}
