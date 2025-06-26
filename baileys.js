@@ -1,70 +1,35 @@
-const {
-  default: makeWASocket,
-  useMultiFileAuthState,
-  fetchLatestBaileysVersion
-} = require('@whiskeysockets/baileys');
-const path = require('path');
-const fs = require('fs');
-const { initializeApp, applicationDefault } = require('firebase-admin/app');
-const { getStorage } = require('firebase-admin/storage');
+const { default: makeWASocket, useSingleFileAuthState } = require('@adiwajshing/baileys');
+const db = require('./firebase');
 
-// 🔐 Initialisation Firebase
-const firebaseConfigPath = path.join(__dirname, 'firebase-config.json');
-if (fs.existsSync(firebaseConfigPath)) {
-  initializeApp({
-    credential: applicationDefault(),
-    storageBucket: process.env.FIREBASE_BUCKET
-  });
-} else {
-  console.error('⚠️ firebase-config.json introuvable.');
-}
+async function startSock() {
+  // Charge session depuis Firebase Realtime DB
+  const sessionRef = db.ref('sessions/thatbotz-session');
+  let sessionData = null;
+  try {
+    const snapshot = await sessionRef.get();
+    sessionData = snapshot.exists() ? snapshot.val() : null;
+  } catch (err) {
+    console.error('Erreur lecture session Firebase:', err);
+  }
 
-const bucket = getStorage().bucket();
-
-async function connectWithPairingCode(phoneNumber) {
-  if (!phoneNumber) throw new Error("Numéro manquant");
-
-  const sessionFolder = `./sessions/THATBOTZ_${phoneNumber}`;
-  const { state, saveCreds } = await useMultiFileAuthState(sessionFolder);
-  const { version } = await fetchLatestBaileysVersion();
-
+  // Initialise Baileys avec session récupérée
   const sock = makeWASocket({
-    version,
-    auth: state,
-    printQRInTerminal: false,
-    browser: ['Makima', 'Chrome', '10.0']
+    auth: sessionData || undefined,
+    printQRInTerminal: true,
   });
 
-  // Générer code de couplage uniquement si non enregistré
-  if (!sock.authState.creds.registered) {
-    const code = await sock.requestPairingCode(phoneNumber);
-    console.log(`✅ Pairing code pour ${phoneNumber} :`, code);
+  // Écoute changement session pour sauvegarder
+  sock.ev.on('creds.update', async (creds) => {
+    try {
+      await sessionRef.set(sock.authState);
+      console.log('Session sauvegardée dans Firebase');
+    } catch (err) {
+      console.error('Erreur sauvegarde session Firebase:', err);
+    }
+  });
 
-    // Écoute des mises à jour d'identifiants
-    sock.ev.on('creds.update', async () => {
-      await saveCreds();
-      await uploadSessionToFirebase(phoneNumber, sessionFolder);
-    });
-
-    return code;
-  } else {
-    return null;
-  }
+  // Retourne la socket
+  return sock;
 }
 
-async function uploadSessionToFirebase(phone, sessionPath) {
-  const folderFiles = fs.readdirSync(sessionPath);
-  for (const file of folderFiles) {
-    const filePath = path.join(sessionPath, file);
-    const dest = `THATBOTZ_${phone}_auth_info/${file}`;
-    await bucket.upload(filePath, {
-      destination: dest,
-      metadata: {
-        contentType: 'application/json'
-      }
-    });
-  }
-  console.log(`🗃️ Session de ${phone} uploadée vers Firebase.`);
-}
-
-module.exports = { connectWithPairingCode };
+module.exports = { startSock };
