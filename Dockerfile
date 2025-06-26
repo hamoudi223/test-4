@@ -1,20 +1,21 @@
-# Image officielle Node.js
+# Utiliser une image officielle Node.js stable
 FROM node:18
 
-# Dossier de travail
+# Créer et se placer dans le dossier de travail
 WORKDIR /app
 
-# Copie des fichiers nécessaires pour installer les dépendances
+# Copier package.json et package-lock.json s'il existe
 COPY package.json ./
+COPY package-lock.json* ./
 
-# Installation des dépendances
+# Installer les dépendances
 RUN npm install
 
-# Copie de tous les fichiers du projet, y compris firebase-config.json
+# Copier tous les fichiers du projet (y compris .env et firebase-config.json)
 COPY . .
 
-# Expose le port de ton backend
+# Exposer le port sur lequel le serveur écoute (3000 par défaut)
 EXPOSE 3000
 
-# Lancer le serveur
+# Démarrer l'application avec npm start
 CMD ["npm", "start"]
