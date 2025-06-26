@@ -1,5 +1,5 @@
 const express = require("express");
-const makeWASocket = require("@adiwajshing/baileys").default;
+const baileys = require('@whiskeysockets/baileys');
 const { useSingleFileAuthState } = require("@adiwajshing/baileys");
 const { default: P } = require("pino");
 const QRCode = require("qrcode");
