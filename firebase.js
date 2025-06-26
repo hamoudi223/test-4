@@ -1,20 +1,11 @@
-const { initializeApp, cert } = require('firebase-admin/app');
-const { getFirestore } = require('firebase-admin/firestore');
-const { getStorage } = require('firebase-admin/storage');
-require('dotenv').config();
+const admin = require('firebase-admin');
+const serviceAccount = require('./firebase-config.json');
 
-const firebaseConfig = {
-  credential: cert({
-    projectId: process.env.FIREBASE_PROJECT_ID,
-    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-    // attention à bien formater ta clé privée avec \n
-    privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-  }),
-  storageBucket: process.env.FIREBASE_BUCKET,
-};
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+  databaseURL: process.env.FIREBASE_DATABASE_URL,  // ex: https://thatbotz-session-default-rtdb.firebaseio.com
+});
 
-const firebaseApp = initializeApp(firebaseConfig);
-const db = getFirestore(firebaseApp);
-const bucket = getStorage(firebaseApp).bucket();
+const db = admin.database();
 
-module.exports = { firebaseApp, db, bucket };
+module.exports = db;
