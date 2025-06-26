@@ -1,18 +1,20 @@
-# Étape 1 : Utilise une image Node officielle
+# Utilise une image officielle Node.js, version 18 stable
 FROM node:18
 
-# Étape 2 : Crée et positionne dans le dossier de travail
+# Crée et place le dossier de travail
 WORKDIR /app
 
-# Étape 3 : Copie les fichiers nécessaires
-COPY package*.json ./
-COPY . .
+# Copie les fichiers package.json et package-lock.json (si présent)
+COPY package.json package-lock.json* ./
 
-# Étape 4 : Installe les dépendances
+# Installe les dépendances (Baileys 6.7.18 etc.)
 RUN npm install
 
-# Étape 5 : Expose le port (Koyeb détectera automatiquement)
+# Copie le reste des fichiers du projet dans le container
+COPY . .
+
+# Expose le port sur lequel ton app écoute (ajuste si besoin)
 EXPOSE 3000
 
-# Étape 6 : Lance le serveur
-CMD ["node", "server.js"]
+# Démarre l’application avec npm start (node server.js)
+CMD ["npm", "start"]
