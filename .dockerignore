@@ -1,8 +1,5 @@
-# On ignore node_modules car on reconstruit tout dans l'image
 node_modules
-
-# On ignore .env pour éviter d'exposer tes variables sensibles (optionnel si tu les passes depuis Render ou Koyeb)
-.env
-
-# ⚠️ Ne PAS ignorer firebase-config.json si tu veux qu'il soit dans l'image
-# firebase-config.json
+npm-debug.log
+Dockerfile
+.dockerignore
+README.md
