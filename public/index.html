@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>THATBOTZ QR</title>
+  <style>
+    body { text-align: center; font-family: sans-serif; background: #111; color: #fff; }
+    img { margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <h1>Scanner le QR pour connecter votre WhatsApp</h1>
+  <input type="text" id="phone" placeholder="Entrer le numéro WhatsApp" />
+  <button onclick="generate()">Générer QR</button>
+  <div id="qr"></div>
+
+  <script>
+    async function generate() {
+      const phone = document.getElementById("phone").value;
+      const res = await fetch("/session/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone })
+      });
+      const data = await res.json();
+      if (data.qr) {
+        document.getElementById("qr").innerHTML = `<img src="${data.qr}" />`;
+      } else {
+        document.getElementById("qr").innerText = "Erreur : " + JSON.stringify(data);
+      }
+    }
+  </script>
+</body>
+</html>
