@@ -1,88 +1,70 @@
-const { makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
-const { default: P } = require('pino');
-const fs = require('fs');
+const {
+  default: makeWASocket,
+  useMultiFileAuthState,
+  fetchLatestBaileysVersion
+} = require('@whiskeysockets/baileys');
 const path = require('path');
-const qrcode = require('qrcode');
-const express = require('express');
-const router = express.Router();
-const admin = require('firebase-admin');
+const fs = require('fs');
+const { initializeApp, applicationDefault } = require('firebase-admin/app');
 const { getStorage } = require('firebase-admin/storage');
 
-const { initializeApp, applicationDefault } = require('firebase-admin/app');
+// 🔐 Initialisation Firebase
+const firebaseConfigPath = path.join(__dirname, 'firebase-config.json');
+if (fs.existsSync(firebaseConfigPath)) {
+  initializeApp({
+    credential: applicationDefault(),
+    storageBucket: process.env.FIREBASE_BUCKET
+  });
+} else {
+  console.error('⚠️ firebase-config.json introuvable.');
+}
 
-// Initialisation Firebase
-const firebaseConfig = require('./firebase-config.json');
-initializeApp({
-  credential: admin.credential.cert(firebaseConfig),
-  storageBucket: firebaseConfig.project_id + ".appspot.com"
-});
 const bucket = getStorage().bucket();
 
-router.post('/generate', async (req, res) => {
-  const number = req.body.number;
-  if (!number) return res.status(400).json({ error: "Numéro WhatsApp requis" });
+async function connectWithPairingCode(phoneNumber) {
+  if (!phoneNumber) throw new Error("Numéro manquant");
 
-  const sessionId = `THATBOTZ_${number.replace(/\D/g, '')}_auth_info`;
-  const sessionDir = path.join(__dirname, 'sessions', sessionId);
-  if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
-
-  const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
+  const sessionFolder = `./sessions/THATBOTZ_${phoneNumber}`;
+  const { state, saveCreds } = await useMultiFileAuthState(sessionFolder);
+  const { version } = await fetchLatestBaileysVersion();
 
   const sock = makeWASocket({
-    logger: P({ level: 'silent' }),
-    printQRInTerminal: false,
+    version,
     auth: state,
-    browser: ['MakimaBot', 'Chrome', '1.0.0'],
+    printQRInTerminal: false,
+    browser: ['Makima', 'Chrome', '10.0']
   });
 
-  let qrSent = false;
+  // Générer code de couplage uniquement si non enregistré
+  if (!sock.authState.creds.registered) {
+    const code = await sock.requestPairingCode(phoneNumber);
+    console.log(`✅ Pairing code pour ${phoneNumber} :`, code);
 
-  sock.ev.on('connection.update', async (update) => {
-    const { connection, qr } = update;
-
-    if (qr && !qrSent) {
-      qrSent = true;
-
-      const qrImage = await qrcode.toDataURL(qr);
-      res.json({ qr: qrImage });
-    }
-
-    if (connection === 'open') {
-      console.log('✅ Connecté à WhatsApp');
+    // Écoute des mises à jour d'identifiants
+    sock.ev.on('creds.update', async () => {
       await saveCreds();
+      await uploadSessionToFirebase(phoneNumber, sessionFolder);
+    });
 
-      // Zip des fichiers de session
-      const zipPath = `${sessionId}.zip`;
-      const archiver = require('archiver');
-      const output = fs.createWriteStream(zipPath);
-      const archive = archiver('zip');
+    return code;
+  } else {
+    return null;
+  }
+}
 
-      archive.pipe(output);
-      archive.directory(sessionDir, false);
-      await archive.finalize();
-
-      output.on('close', async () => {
-        // Envoie dans FireBase Storage
-        await bucket.upload(zipPath, {
-          destination: `sessions/${sessionId}.zip`,
-          public: true
-        });
-
-        fs.unlinkSync(zipPath); // Nettoyage
-        console.log('✅ Session envoyée sur FireBase');
-      });
-    }
-
-    if (connection === 'close') {
-      const reason = update.lastDisconnect?.error?.output?.statusCode;
-      if (reason !== DisconnectReason.loggedOut) {
-        console.log('🔁 Reconnexion...');
-        sock.ws.close();
+async function uploadSessionToFirebase(phone, sessionPath) {
+  const folderFiles = fs.readdirSync(sessionPath);
+  for (const file of folderFiles) {
+    const filePath = path.join(sessionPath, file);
+    const dest = `THATBOTZ_${phone}_auth_info/${file}`;
+    await bucket.upload(filePath, {
+      destination: dest,
+      metadata: {
+        contentType: 'application/json'
       }
-    }
-  });
+    });
+  }
+  console.log(`🗃️ Session de ${phone} uploadée vers Firebase.`);
+}
 
-  sock.ev.on('creds.update', saveCreds);
-});
-
-module.exports = router;
+module.exports = { connectWithPairingCode };
