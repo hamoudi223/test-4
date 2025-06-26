@@ -1,37 +1,57 @@
+const { Boom } = require('@hapi/boom');
+const makeWASocket = require('@whiskeysockets/baileys').default;
+const { useMultiFileAuthState } = require('@whiskeysockets/baileys');
 const express = require("express");
-const baileys = require('@whiskeysockets/baileys');
-const { useSingleFileAuthState } = require("@adiwajshing/baileys");
-const { default: P } = require("pino");
-const QRCode = require("qrcode");
+const qrcode = require("qrcode");
 const fs = require("fs");
 const path = require("path");
-
 const router = express.Router();
 
-router.get("/qr", async (req, res) => {
-  const sessionId = req.query.session || "default";
-  const filePath = path.join(__dirname, `./auth_info_${sessionId}.json`);
-  const { state, saveState } = useSingleFileAuthState(filePath);
+const SESSIONS_DIR = './sessions';
+
+if (!fs.existsSync(SESSIONS_DIR)) {
+  fs.mkdirSync(SESSIONS_DIR);
+}
+
+router.post("/start", async (req, res) => {
+  const { number } = req.body;
+
+  if (!number) {
+    return res.status(400).json({ error: "Numéro manquant" });
+  }
+
+  const sessionId = `THATBOTZ_${number}`;
+  const sessionPath = path.join(SESSIONS_DIR, sessionId);
+
+  const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
 
   const sock = makeWASocket({
     auth: state,
     printQRInTerminal: false,
-    logger: P({ level: "silent" }),
+    logger: require('@whiskeysockets/baileys').pino({ level: 'silent' }),
+    browser: ["THATBOTZ", "Chrome", "121.0.0.0"],
   });
+
+  sock.ev.on("creds.update", saveCreds);
 
   sock.ev.on("connection.update", async (update) => {
     const { connection, qr } = update;
+
     if (qr) {
-      const qrImage = await QRCode.toDataURL(qr);
-      res.send({ qr: qrImage });
+      const qrImage = await qrcode.toDataURL(qr);
+      return res.json({ qr: qrImage });
     }
 
     if (connection === "open") {
-      console.log("Connected to WhatsApp");
+      console.log(`✅ Connexion réussie avec ${number}`);
+    }
+
+    if (connection === "close") {
+      const shouldReconnect = (update.lastDisconnect?.error instanceof Boom) &&
+        (update.lastDisconnect.error.output?.statusCode !== DisconnectReason.loggedOut);
+      console.log("📴 Déconnecté", update.reason, "Reconnexion :", shouldReconnect);
     }
   });
-
-  sock.ev.on("creds.update", saveState);
 });
 
 module.exports = router;
