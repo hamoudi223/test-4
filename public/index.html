@@ -2,31 +2,70 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
-  <title>THATBOTZ QR</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ᴛʜᴀᴛʙᴏᴛᴢ ᴘᴀɪʀɪɴɢ sɪᴛᴇ</title>
   <style>
-    body { text-align: center; font-family: sans-serif; background: #111; color: #fff; }
-    img { margin-top: 20px; }
+    body {
+      background-color: #111;
+      color: #fff;
+      font-family: 'Segoe UI', sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      text-align: center;
+    }
+
+    input {
+      padding: 10px;
+      font-size: 16px;
+      margin-top: 20px;
+      width: 300px;
+      border: none;
+      border-radius: 5px;
+    }
+
+    button {
+      padding: 10px 20px;
+      margin-top: 15px;
+      font-size: 16px;
+      background-color: crimson;
+      border: none;
+      border-radius: 5px;
+      color: white;
+      cursor: pointer;
+    }
+
+    #qr {
+      margin-top: 30px;
+    }
   </style>
 </head>
 <body>
-  <h1>Scanner le QR pour connecter votre WhatsApp</h1>
-  <input type="text" id="phone" placeholder="Entrer le numéro WhatsApp" />
-  <button onclick="generate()">Générer QR</button>
+  <h1>ᴛʜᴀᴛʙᴏᴛᴢ ᴘᴀɪʀɪɴɢ sɪᴛᴇ</h1>
+  <input type="text" id="number" placeholder="Entrez un numéro WhatsApp ex: +22395064497" />
+  <button onclick="generateQR()">Générer QR Code</button>
   <div id="qr"></div>
 
   <script>
-    async function generate() {
-      const phone = document.getElementById("phone").value;
-      const res = await fetch("/session/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone })
+    async function generateQR() {
+      const number = document.getElementById('number').value.trim();
+      if (!number) return alert('Veuillez entrer un numéro');
+
+      document.getElementById('qr').innerHTML = "⏳ Génération du QR code...";
+
+      const res = await fetch('/session/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ number })
       });
+
       const data = await res.json();
       if (data.qr) {
-        document.getElementById("qr").innerHTML = `<img src="${data.qr}" />`;
+        document.getElementById('qr').innerHTML = `<img src="${data.qr}" alt="QR Code WhatsApp" />`;
       } else {
-        document.getElementById("qr").innerText = "Erreur : " + JSON.stringify(data);
+        document.getElementById('qr').innerHTML = "❌ Erreur : " + (data.error || "Inconnue");
       }
     }
   </script>
